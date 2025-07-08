@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth" >
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Campus Clinic Medical Shop - Cart & Prescription</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    #cartItems {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col">
+  <header class="bg-white dark:bg-gray-800 shadow-md p-4 flex justify-between items-center sticky top-0 z-50">
+    <h1 class="text-2xl font-bold text-blue-700 dark:text-blue-400">Campus Clinic Medical Shop</h1>
+    <button id="cartToggle" class="relative px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white flex items-center gap-2">
+      <i class="fas fa-shopping-cart"></i> Cart
+      <span id="cartCount" class="absolute -top-2 -right-2 bg-red-600 rounded-full text-xs px-2">0</span>
+    </button>
+  </header>
+  <main class="max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row gap-10">
+    <section class="flex-1">
+      <input type="text" id="searchInput" placeholder="Search medicines..." class="w-full mb-6 p-3 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:outline-blue-500" onkeyup="filterMedicines()" />
+      <div id="medicineGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"></div>
+      <div class="mt-10 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+        <h2 class="text-xl font-semibold mb-4 text-blue-700 dark:text-blue-400">Upload Prescription</h2>
+        <input type="file" id="prescriptionInput" accept="image/*,.pdf" class="block w-full text-sm text-gray-600 dark:text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:bg-blue-600 file:text-white file:hover:bg-blue-700 cursor-pointer" />
+        <p id="prescriptionStatus" class="mt-3 text-gray-700 dark:text-gray-300"></p>
+        <button id="parsePrescriptionBtn" class="mt-4 px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-60" disabled>Parse Prescription</button>
+      </div>
+    </section>
+    <aside id="cartSidebar" class="fixed right-0 top-0 h-full w-96 bg-white dark:bg-gray-800 shadow-lg p-6 transform translate-x-full transition-transform duration-300 z-50 flex flex-col">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-blue-700 dark:text-blue-400">Your Cart</h2>
+        <button id="closeCart" class="text-gray-600 dark:text-gray-300 hover:text-red-600 text-2xl">&times;</button>
+      </div>
+      <div id="cartItems" class="flex-grow overflow-y-auto space-y-4 mb-6"></div>
+      <div class="border-t border-gray-300 dark:border-gray-700 pt-4 space-y-4">
+        <h3 class="text-xl font-semibold text-gray-900 dark:text-white">Checkout Details</h3>
+        <div>
+          <label for="customerName" class="block mb-1 text-gray-700 dark:text-gray-300 font-medium">Full Name</label>
+          <input type="text" id="customerName" class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="Enter your full name" required />
+        </div>
+        <div>
+          <label for="customerAddress" class="block mb-1 text-gray-700 dark:text-gray-300 font-medium">Address</label>
+          <textarea id="customerAddress" rows="2" class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="Enter your address" required></textarea>
+        </div>
+        <div>
+          <label for="customerPhone" class="block mb-1 text-gray-700 dark:text-gray-300 font-medium">Phone Number</label>
+          <input type="tel" id="customerPhone" class="w-full p-2 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="Enter your phone number" required />
+        </div>
+        <p class="text-lg font-semibold text-gray-900 dark:text-white">Subtotal: ৳<span id="cartSubtotal">0</span></p>
+        <button id="checkoutBtn" class="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold disabled:opacity-60" disabled>Checkout</button>
+      </div>
+    </aside>
+  </main>
+  <script>
+    const medicines = [
+      { id: 1, name: "Paracetamol 500mg", price: 50, img: "/medical-shop.png" },
+      { id: 2, name: "Vitamin C 1000mg", price: 120, img: "/medical-shop.png" },
+      { id: 3, name: "Cough Syrup 150ml", price: 90, img: "/medical-shop.png" },
+      { id: 4, name: "Antibiotic Capsules", price: 250, img: "/medical-shop.png" }
+    ];
+    let cart = {};
+    const medicineGrid = document.getElementById("medicineGrid");
+    const cartSidebar = document.getElementById("cartSidebar");
+    const cartToggle = document.getElementById("cartToggle");
+    const closeCartBtn = document.getElementById("closeCart");
+    const cartItemsContainer = document.getElementById("cartItems");
+    const cartSubtotalElem = document.getElementById("cartSubtotal");
+    const cartCountElem = document.getElementById("cartCount");
+    const checkoutBtn = document.getElementById("checkoutBtn");
+    const prescriptionInput = document.getElementById("prescriptionInput");
+    const prescriptionStatus = document.getElementById("prescriptionStatus");
+    const parsePrescriptionBtn = document.getElementById("parsePrescriptionBtn");
+    function renderMedicines() {
+      medicineGrid.innerHTML = "";
+      medicines.forEach(med => {
+        const card = document.createElement("div");
+        card.className = "bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col";
+        card.innerHTML = `
+          <img src="${med.img}" alt="${med.name}" class="w-full h-40 object-contain mb-3 rounded" />
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">${med.name}</h3>
+          <p class="text-blue-700 dark:text-blue-400 font-bold mb-4">৳ ${med.price}</p>
+          <button class="mt-auto bg-blue-600 hover:bg-blue-700 text-white py-2 rounded flex items-center justify-center gap-2" onclick="addToCart(${med.id})">
+            <i class="fas fa-cart-plus"></i> Add to Cart
+          </button>
+        `;
+        medicineGrid.appendChild(card);
+      });
+    }
+    function filterMedicines() {
+      const input = document.getElementById("searchInput").value.toLowerCase();
+      const filtered = medicines.filter(m => m.name.toLowerCase().includes(input));
+      medicineGrid.innerHTML = "";
+      filtered.forEach(med => {
+        const card = document.createElement("div");
+        card.className = "bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 flex flex-col";
+        card.innerHTML = `
+          <img src="${med.img}" alt="${med.name}" class="w-full h-40 object-contain mb-3 rounded" />
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">${med.name}</h3>
+          <p class="text-blue-700 dark:text-blue-400 font-bold mb-4">৳ ${med.price}</p>
+          <button class="mt-auto bg-blue-600 hover:bg-blue-700 text-white py-2 rounded flex items-center justify-center gap-2" onclick="addToCart(${med.id})">
+            <i class="fas fa-cart-plus"></i> Add to Cart
+          </button>
+        `;
+        medicineGrid.appendChild(card);
+      });
+    }
+    function addToCart(medId) {
+      if(cart[medId]) {
+        cart[medId].quantity += 1;
+      } else {
+        const med = medicines.find(m => m.id === medId);
+        cart[medId] = {...med, quantity: 1};
+      }
+      updateCartUI();
+      openCart();
+    }
+    function removeFromCart(medId) {
+      delete cart[medId];
+      updateCartUI();
+    }
+    function changeQuantity(medId, qty) {
+      if(qty < 1) return;
+      cart[medId].quantity = Number(qty);
+      updateCartUI();
+    }
+    function updateCartUI() {
+      cartItemsContainer.innerHTML = "";
+      let subtotal = 0;
+      let totalItems = 0;
+      for(const key in cart) {
+        const item = cart[key];
+        subtotal += item.price * item.quantity;
+        totalItems += item.quantity;
+        const cartItem = document.createElement("div");
+        cartItem.className = "flex items-center gap-4 bg-gray-100 dark:bg-gray-700 rounded p-3";
+        cartItem.innerHTML = `
+          <div class="flex-grow">
+            <h4 class="font-semibold text-gray-900 dark:text-white">${item.name}</h4>
+            <p class="text-blue-700 dark:text-blue-400">৳ ${item.price} x 
+              <input type="number" min="1" value="${item.quantity}" class="w-16 text-center rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" onchange="changeQuantity(${item.id}, this.value)">
+            </p>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            <p class="font-semibold text-gray-900 dark:text-white">৳ ${(item.price * item.quantity).toFixed(2)}</p>
+            <button onclick="removeFromCart(${item.id})" class="text-red-600 hover:text-red-800" title="Remove">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        `;
+        cartItemsContainer.appendChild(cartItem);
+      }
+      cartSubtotalElem.textContent = subtotal.toFixed(2);
+      cartCountElem.textContent = totalItems;
+      checkoutBtn.disabled = totalItems === 0;
+    }
+    function openCart() {
+      cartSidebar.classList.remove("translate-x-full");
+    }
+    function closeCart() {
+      cartSidebar.classList.add("translate-x-full");
+    }
+    cartToggle.addEventListener("click", openCart);
+    closeCartBtn.addEventListener("click", closeCart);
+    checkoutBtn.addEventListener("click", () => {
+      if(Object.keys(cart).length === 0) {
+        alert("Your cart is empty.");
+        return;
+      }
+      const name = document.getElementById("customerName").value.trim();
+      const address = document.getElementById("customerAddress").value.trim();
+      const phone = document.getElementById("customerPhone").value.trim();
+      if (!name || !address || !phone) {
+        alert("Please fill in all checkout details: Name, Address, and Phone Number.");
+        return;
+      }
+      let orderSummary = `Order Summary for ${name}\n`;
+      orderSummary += `Address: ${address}\n`;
+      orderSummary += `Phone: ${phone}\n\nMedicines:\n`;
+      for(const key in cart) {
+        const item = cart[key];
+        orderSummary += `${item.name} - ${item.quantity} x ৳${item.price} = ৳${(item.price * item.quantity).toFixed(2)}\n`;
+      }
+      orderSummary += `\nSubtotal: ৳${cartSubtotalElem.textContent}\n\nThank you for your order!`;
+      alert(orderSummary);
+      cart = {};
+      updateCartUI();
+      document.getElementById("customerName").value = "";
+      document.getElementById("customerAddress").value = "";
+      document.getElementById("customerPhone").value = "";
+      closeCart();
+    });
+    prescriptionInput.addEventListener("change", () => {
+      if(prescriptionInput.files.length > 0) {
+        prescriptionStatus.textContent = `Selected file: ${prescriptionInput.files[0].name}`;
+        parsePrescriptionBtn.disabled = false;
+      } else {
+        prescriptionStatus.textContent = "";
+        parsePrescriptionBtn.disabled = true;
+      }
+    });
+    parsePrescriptionBtn.addEventListener("click", () => {
+      const sampleMedicines = [1,2,3];
+      sampleMedicines.forEach(id => {
+        if(cart[id]) {
+          cart[id].quantity += 1;
+        } else {
+          const med = medicines.find(m => m.id === id);
+          cart[id] = {...med, quantity: 1};
+        }
+      });
+      updateCartUI();
+      alert("Prescription parsed! Medicines added to cart.");
+      prescriptionInput.value = "";
+      prescriptionStatus.textContent = "";
+      parsePrescriptionBtn.disabled = true;
+      openCart();
+    });
+    renderMedicines();
+    updateCartUI();
+  </script>
+</body>
+</html>
